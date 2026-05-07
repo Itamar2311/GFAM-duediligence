@@ -7,90 +7,90 @@ from report_generator import generate_report
 st.set_page_config(page_title="GFAM Due Diligence", page_icon="📋", layout="wide")
 
 st.title("📋 GFAM Due Diligence Analyzer")
-st.caption("AI-powered document analysis for Genesis Financial Asset Management")
+st.caption("AI-powered investment analysis for Genesis Financial Asset Management")
 st.divider()
-
-SCORE_COLOR = {
-    range(8, 11): "🟢",
-    range(5, 8): "🟡",
-    range(1, 5): "🔴",
-}
 
 def score_color(score):
     if score >= 8: return "🟢"
     if score >= 5: return "🟡"
     return "🔴"
 
-# ── File upload ───────────────────────────────────────────────
-st.subheader("Upload Deal Document")
-st.write("Upload a CIM, pitch deck, financial statement, or any deal document.")
+def rec_color(rec):
+    if rec == "GO": return "success"
+    if rec == "CONDITIONAL GO": return "warning"
+    return "error"
 
 uploaded_file = st.file_uploader(
-    "Drop your file here",
+    "Upload a CIM, pitch deck, financial statement, or any deal document",
     type=["pdf", "docx", "xlsx", "xls"],
-    help="Supported formats: PDF, Word (.docx), Excel (.xlsx)"
+    help="Supported: PDF, Word (.docx), Excel (.xlsx)"
 )
 
 if uploaded_file:
     st.success(f"Uploaded: {uploaded_file.name}")
 
-    if st.button("🔍 Run Due Diligence Analysis", use_container_width=True):
+    if st.button("🔍 Run Investment Analysis", use_container_width=True):
 
-        # Step 1 — Extract text
         with st.spinner("Reading document..."):
             try:
                 text, file_type = extract_text(uploaded_file)
-                st.info(f"Extracted {len(text):,} characters from {file_type} document")
             except Exception as e:
                 st.error(f"Could not read document: {e}")
                 st.stop()
 
         if not text.strip():
-            st.error("Could not extract any text from this document. Try a different file.")
+            st.error("Could not extract any text from this document.")
             st.stop()
 
-        # Step 2 — AI analysis
-        with st.spinner("Running AI analysis... this may take 20-30 seconds"):
+        with st.spinner("Running AI analysis..."):
             try:
                 analysis = analyze_document(text, uploaded_file.name)
             except Exception as e:
                 st.error(f"AI analysis failed: {e}")
                 st.stop()
 
-        st.success("Analysis complete!")
         st.divider()
 
-        # ── Deal snapshot ─────────────────────────────────────
-        score = analysis.get("gfam_fit_score", 5)
-        col1, col2, col3, col4 = st.columns(4)
+        # ── Recommendation banner ─────────────────────────────
+        rec = analysis.get("recommendation", "CONDITIONAL GO")
+        getattr(st, rec_color(rec))(f"**{rec}** — {analysis.get('recommendation_rationale', '')}")
+
+        st.divider()
+
+        # ── Top metrics ───────────────────────────────────────
+        econ = analysis.get("deal_economics", {})
+        fin = analysis.get("financial_snapshot", {})
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Company", analysis.get("company_name", "Unknown"))
         col2.metric("Sector", analysis.get("sector", "Unknown"))
-        col3.metric("Deal Type", analysis.get("deal_type", "Unknown"))
-        col4.metric("GFAM Fit", f"{score_color(score)} {score}/10")
+        col3.metric("Asking Price", econ.get("asking_price", "Unknown"))
+        col4.metric("EV/EBITDA", econ.get("ev_ebitda_multiple", "Unknown"))
+        col5.metric("GFAM Fit", f"{score_color(analysis.get('gfam_fit_score', 5))} {analysis.get('gfam_fit_score', 5)}/10")
 
         st.divider()
 
-        # ── Two column layout ─────────────────────────────────
         left, right = st.columns([3, 2])
 
         with left:
-            st.subheader("Company Overview")
-            st.write(analysis.get("company_overview", "N/A"))
+            st.subheader("💡 Value Creation Thesis")
+            st.info(analysis.get("value_creation_thesis", ""))
 
-            st.subheader("💡 Investment Thesis")
-            st.info(analysis.get("investment_thesis", "N/A"))
+            st.subheader("Financial Quality")
+            st.write(analysis.get("financial_quality", ""))
 
-            st.subheader("GFAM Fit Assessment")
-            st.write(analysis.get("gfam_fit_reason", "N/A"))
+            st.subheader("Market Context")
+            st.write(analysis.get("market_context", ""))
+
+            st.subheader("GFAM Fit")
+            st.write(analysis.get("gfam_fit_reason", ""))
 
             col_a, col_b = st.columns(2)
             with col_a:
-                st.subheader("✅ Key Strengths")
+                st.subheader("✅ Strengths")
                 for s in analysis.get("key_strengths", []):
                     st.write(f"• {s}")
-
             with col_b:
-                st.subheader("⚠️ Key Risks")
+                st.subheader("⚠️ Risks")
                 for r in analysis.get("key_risks", []):
                     st.write(f"• {r}")
 
@@ -101,41 +101,35 @@ if uploaded_file:
                     st.error(f)
 
         with right:
-            st.subheader("Deal Snapshot")
-            st.markdown(f"**Deal Size:** {analysis.get('deal_size', 'Unknown')}")
-            st.markdown(f"**Capital Fit:** {analysis.get('recommended_capital_product', 'Unknown')}")
+            st.subheader("Deal Economics")
+            st.markdown(f"**Deal Type:** {analysis.get('deal_type', 'Unknown')}")
+            st.markdown(f"**Structure:** {econ.get('structure', 'Unknown')}")
+            st.markdown(f"**Deal Size:** {econ.get('deal_size', 'Unknown')}")
+            st.markdown(f"**Capital Product:** {analysis.get('recommended_capital_product', 'Unknown')}")
 
-            st.subheader("Financial Highlights")
-            fin = analysis.get("financial_highlights", {})
-            fin_items = [
-                ("Revenue", fin.get("revenue", "Unknown")),
-                ("EBITDA", fin.get("ebitda", "Unknown")),
-                ("Margins", fin.get("margins", "Unknown")),
-                ("Debt", fin.get("debt", "Unknown")),
-                ("Growth", fin.get("growth", "Unknown")),
-            ]
-            for label, value in fin_items:
-                st.markdown(f"**{label}:** {value}")
+            st.subheader("Financials")
+            for label, key in [
+                ("Revenue", "revenue"), ("EBITDA", "ebitda"),
+                ("Margin", "ebitda_margin"), ("Growth", "revenue_growth"),
+                ("Net Income", "net_income"), ("Debt", "debt"),
+                ("Recurring Rev.", "recurring_revenue")
+            ]:
+                val = fin.get(key, "Unknown")
+                if val and val != "Unknown":
+                    st.markdown(f"**{label}:** {val}")
 
-            team = analysis.get("management_team", [])
-            if team:
-                st.subheader("Management Team")
-                for member in team:
-                    st.write(f"• {member}")
-
-            st.subheader("Recommended Next Steps")
-            for i, step in enumerate(analysis.get("next_steps", []), 1):
-                st.write(f"{i}. {step}")
+            st.subheader("📋 Diligence Checklist")
+            for i, item in enumerate(analysis.get("diligence_checklist", []), 1):
+                st.write(f"{i}. {item}")
 
         st.divider()
 
-        # ── Export ────────────────────────────────────────────
         try:
             report_bytes = generate_report(analysis, uploaded_file.name)
             st.download_button(
-                label="📄 Download Due Diligence Report (.docx)",
+                label="📄 Download Investment Analysis (.docx)",
                 data=report_bytes,
-                file_name=f"GFAM_DD_{analysis.get('company_name', 'Report').replace(' ', '_')}_{datetime.now().strftime('%Y-%m-%d')}.docx",
+                file_name=f"GFAM_Analysis_{analysis.get('company_name','Report').replace(' ','_')}_{datetime.now().strftime('%Y-%m-%d')}.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
             )
@@ -143,17 +137,15 @@ if uploaded_file:
             st.error(f"Report generation failed: {e}")
 
 else:
-    st.info("👆 Upload a document above to get started.")
-
+    st.info("👆 Upload a deal document to get started.")
     st.divider()
-    st.subheader("What this tool analyzes")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("**📊 Financials**")
-        st.write("Revenue, EBITDA, margins, debt levels, growth rates")
+        st.markdown("**📊 Deal Economics**")
+        st.write("Asking price, EV/EBITDA multiple, deal structure, capital fit")
     with col2:
-        st.markdown("**🏢 Company**")
-        st.write("Business overview, management team, deal structure")
+        st.markdown("**💰 Financial Analysis**")
+        st.write("Revenue, EBITDA, margins, debt, growth, earnings quality")
     with col3:
-        st.markdown("**🎯 GFAM Fit**")
-        st.write("Fit score, capital product recommendation, investment thesis")
+        st.markdown("**🎯 Investment Decision**")
+        st.write("GO / PASS recommendation, value creation thesis, diligence checklist")
