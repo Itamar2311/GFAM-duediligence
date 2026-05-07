@@ -56,7 +56,7 @@ From the document above, find and return ONLY this JSON with the real values —
 }}"""
 
     response = client.chat.completions.create(
-        model="llama3-70b-8192",
+        model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=2000,
         temperature=0.1,
@@ -64,7 +64,6 @@ From the document above, find and return ONLY this JSON with the real values —
 
     raw = response.choices[0].message.content.strip()
 
-    # Show raw response in app for debugging
     st.expander("🔧 Raw AI response (debug)").write(raw)
 
     start = raw.find('{')
