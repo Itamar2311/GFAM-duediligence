@@ -16,6 +16,19 @@ def truncate(text, max_chars=10000):
     return text
 
 
+def map_sector(raw_sector: str) -> str:
+    raw = raw_sector.lower()
+    if any(w in raw for w in ["health", "medical", "rehab", "clinic", "pharma", "hospital"]):
+        return "Healthcare Services"
+    if any(w in raw for w in ["infrastructure", "utilities", "transport", "energy", "water"]):
+        return "Infrastructure"
+    if any(w in raw for w in ["finance", "fintech", "insurance", "bank", "asset management", "nbfc", "credit"]):
+        return "Financial Services"
+    if any(w in raw for w in ["distress", "restructur", "special", "turnaround", "recapital"]):
+        return "Special Situations"
+    return raw_sector
+
+
 def analyze_document(text: str, file_name: str) -> dict:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
     cleaned_text = truncate(clean(text))
@@ -24,7 +37,7 @@ def analyze_document(text: str, file_name: str) -> dict:
 
 {cleaned_text}
 
-From the document above, find and return ONLY this JSON with the real values — no placeholders, no "Unknown" if the value exists in the text:
+From the document above, find and return ONLY this JSON with the real values. No "Unknown" if the value exists in the text. Write strengths and risks as specific, capitalized sentences with data points.
 
 {{
   "company_name": "exact company name",
@@ -41,18 +54,18 @@ From the document above, find and return ONLY this JSON with the real values —
   "net_income": "exact net income",
   "debt": "exact debt amount",
   "recurring_revenue": "% or description of recurring revenue",
-  "financial_quality": "write 2-3 sentences assessing earnings quality using the numbers you found",
-  "value_creation_thesis": "write 3-4 sentences on how an investor makes money here — roll-up, growth, margin expansion, exit",
-  "market_context": "write 2-3 sentences on the market opportunity",
+  "financial_quality": "2-3 sentences assessing earnings quality using specific numbers from the document",
+  "value_creation_thesis": "3-4 sentences on how an investor makes money — roll-up, growth, margin expansion, exit multiple. Be specific.",
+  "market_context": "2-3 sentences on the market opportunity with specific data points",
   "gfam_fit_score": 8,
-  "gfam_fit_reason": "write 2 sentences on investment fit",
+  "gfam_fit_reason": "2 sentences on fit with GFAM mandate referencing specific deal characteristics",
   "recommended_capital_product": "one of: Growth Capital, Acquisition Financing, Liquidity Solutions, Special Situations Financing, Stabilization Capital",
-  "key_strengths": ["specific strength 1", "specific strength 2", "specific strength 3"],
-  "key_risks": ["specific risk 1", "specific risk 2", "specific risk 3"],
+  "key_strengths": ["Specific strength with data point from document", "Specific strength with data point", "Specific strength with data point"],
+  "key_risks": ["Specific risk with context from document", "Specific risk with context", "Specific risk with context"],
   "red_flags": [],
-  "diligence_checklist": ["item 1", "item 2", "item 3", "item 4", "item 5"],
+  "diligence_checklist": ["Specific item to verify or request", "Specific item to verify", "Specific item to verify", "Specific item to verify", "Specific item to verify"],
   "recommendation": "GO or CONDITIONAL GO or PASS",
-  "recommendation_rationale": "write 2-3 sentences justifying the recommendation with specific numbers"
+  "recommendation_rationale": "2-3 direct sentences justifying the recommendation with specific numbers"
 }}"""
 
     response = client.chat.completions.create(
@@ -63,9 +76,6 @@ From the document above, find and return ONLY this JSON with the real values —
     )
 
     raw = response.choices[0].message.content.strip()
-
-    st.expander("🔧 Raw AI response (debug)").write(raw)
-
     start = raw.find('{')
     end = raw.rfind('}') + 1
     if start != -1 and end > start:
@@ -76,7 +86,7 @@ From the document above, find and return ONLY this JSON with the real values —
 
     return {
         "company_name": result.get("company_name", "Unknown"),
-        "sector": result.get("sector", "Unknown"),
+        "sector": map_sector(result.get("sector", "Unknown")),
         "deal_type": result.get("deal_type", "Unknown"),
         "deal_economics": {
             "asking_price": result.get("asking_price", "Unknown"),
