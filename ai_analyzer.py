@@ -20,54 +20,53 @@ def analyze_document(text: str, file_name: str) -> dict:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
     cleaned_text = truncate(clean(text))
 
-    prompt = f"""You are a senior investment analyst at Genesis Financial Asset Management (GFAM).
-GFAM provides equity, structured debt, and hybrid capital for Healthcare Services, Infrastructure, Financial Services, and Special Situations deals.
-Capital products: Growth Capital, Acquisition Financing, Liquidity Solutions, Special Situations Financing, Stabilization Capital.
-
-Document: {clean(file_name)}
-
-Read every word of this document and extract ALL specific numbers and details. Never write "Unknown" if the number appears anywhere in the text.
+    prompt = f"""Read this document carefully and extract the specific values listed below.
 
 {cleaned_text}
 
-Now respond ONLY with this JSON. No markdown. Fill every single field using the exact numbers from the document above:
+From the document above, find and return ONLY this JSON with the real values — no placeholders, no "Unknown" if the value exists in the text:
 
 {{
-  "company_name": "company name",
-  "sector": "Healthcare Services",
-  "deal_type": "M&A",
-  "asking_price": "CAD 55-65 million",
-  "ev_ebitda_multiple": "7.2x - 8.5x",
-  "deal_size": "CAD 55-65 million",
-  "deal_structure": "Full share sale",
-  "revenue": "CAD 38.2M (FY2025)",
-  "ebitda": "CAD 7.6M (FY2025)",
-  "ebitda_margin": "19.9%",
-  "revenue_growth": "18% YoY",
-  "net_income": "net income figure or Unknown",
-  "debt": "CAD 6.8M term loan (BMO)",
-  "recurring_revenue": "65% from insurance contracts",
-  "financial_quality": "2-3 sentences on earnings quality referencing the specific numbers above",
-  "value_creation_thesis": "3-4 sentences on how GFAM makes money — roll-up strategy, margin expansion, exit multiple. Be specific.",
-  "market_context": "2-3 sentences on market size, growth drivers, competition",
+  "company_name": "exact company name",
+  "sector": "exact sector",
+  "deal_type": "exact deal type",
+  "asking_price": "exact EV or price range",
+  "ev_ebitda_multiple": "exact multiple",
+  "deal_size": "exact deal size",
+  "deal_structure": "exact structure e.g. full share sale",
+  "revenue": "exact revenue with year",
+  "ebitda": "exact EBITDA with year",
+  "ebitda_margin": "exact margin %",
+  "revenue_growth": "exact growth rate",
+  "net_income": "exact net income",
+  "debt": "exact debt amount",
+  "recurring_revenue": "% or description of recurring revenue",
+  "financial_quality": "write 2-3 sentences assessing earnings quality using the numbers you found",
+  "value_creation_thesis": "write 3-4 sentences on how an investor makes money here — roll-up, growth, margin expansion, exit",
+  "market_context": "write 2-3 sentences on the market opportunity",
   "gfam_fit_score": 8,
-  "gfam_fit_reason": "2 sentences on fit with GFAM mandate referencing specific deal characteristics",
-  "recommended_capital_product": "Acquisition Financing",
-  "key_strengths": ["strength with specific data", "strength with specific data", "strength with specific data"],
-  "key_risks": ["risk with context", "risk with context", "risk with context"],
-  "red_flags": ["red flag if any, else leave empty array"],
+  "gfam_fit_reason": "write 2 sentences on investment fit",
+  "recommended_capital_product": "one of: Growth Capital, Acquisition Financing, Liquidity Solutions, Special Situations Financing, Stabilization Capital",
+  "key_strengths": ["specific strength 1", "specific strength 2", "specific strength 3"],
+  "key_risks": ["specific risk 1", "specific risk 2", "specific risk 3"],
+  "red_flags": [],
   "diligence_checklist": ["item 1", "item 2", "item 3", "item 4", "item 5"],
-  "recommendation": "GO",
-  "recommendation_rationale": "2-3 direct sentences with specific numbers justifying the decision"
+  "recommendation": "GO or CONDITIONAL GO or PASS",
+  "recommendation_rationale": "write 2-3 sentences justifying the recommendation with specific numbers"
 }}"""
 
     response = client.chat.completions.create(
         model="llama3-70b-8192",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=2000,
+        temperature=0.1,
     )
 
     raw = response.choices[0].message.content.strip()
+
+    # Show raw response in app for debugging
+    st.expander("🔧 Raw AI response (debug)").write(raw)
+
     start = raw.find('{')
     end = raw.rfind('}') + 1
     if start != -1 and end > start:
@@ -76,7 +75,6 @@ Now respond ONLY with this JSON. No markdown. Fill every single field using the 
     raw = re.sub(r'[\x00-\x1f\x7f]', ' ', raw)
     result = json.loads(raw)
 
-    # Reshape flat response into nested structure app.py expects
     return {
         "company_name": result.get("company_name", "Unknown"),
         "sector": result.get("sector", "Unknown"),
