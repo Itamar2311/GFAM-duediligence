@@ -20,13 +20,25 @@ def map_sector(raw_sector: str) -> str:
     raw = raw_sector.lower()
     if any(w in raw for w in ["health", "medical", "rehab", "clinic", "pharma", "hospital"]):
         return "Healthcare Services"
-    if any(w in raw for w in ["infrastructure", "utilities", "transport", "energy", "water"]):
+    if any(w in raw for w in ["infrastructure", "utilities", "transport", "energy", "water", "ev", "charging", "grid", "power", "renewable"]):
         return "Infrastructure"
     if any(w in raw for w in ["finance", "fintech", "insurance", "bank", "asset management", "nbfc", "credit"]):
         return "Financial Services"
     if any(w in raw for w in ["distress", "restructur", "special", "turnaround", "recapital"]):
         return "Special Situations"
     return raw_sector
+
+
+def clean_list(items: list) -> list:
+    """Remove any leading numbers/bullets the model adds to list items."""
+    cleaned = []
+    for item in items:
+        item = str(item).strip()
+        item = re.sub(r'^[\d]+[\.\)]\s*', '', item)
+        item = re.sub(r'^[-•]\s*', '', item)
+        if item:
+            cleaned.append(item)
+    return cleaned
 
 
 def analyze_document(text: str, file_name: str) -> dict:
@@ -37,33 +49,33 @@ def analyze_document(text: str, file_name: str) -> dict:
 
 {cleaned_text}
 
-From the document above, find and return ONLY this JSON with the real values. No "Unknown" if the value exists in the text. Write strengths and risks as specific, capitalized sentences with data points.
+From the document above, find and return ONLY this JSON with the real values. No "Unknown" if the value exists in the text. Do NOT number items in arrays — just write the text directly.
 
 {{
   "company_name": "exact company name",
   "sector": "exact sector",
   "deal_type": "exact deal type",
-  "asking_price": "exact EV or price range",
+  "asking_price": "exact EV, valuation, or price range",
   "ev_ebitda_multiple": "exact multiple",
-  "deal_size": "exact deal size",
-  "deal_structure": "exact structure e.g. full share sale",
+  "deal_size": "exact deal size or raise amount",
+  "deal_structure": "exact structure e.g. minority equity, full share sale",
   "revenue": "exact revenue with year",
   "ebitda": "exact EBITDA with year",
   "ebitda_margin": "exact margin %",
   "revenue_growth": "exact growth rate",
-  "net_income": "exact net income",
-  "debt": "exact debt amount",
+  "net_income": "exact net income or Not disclosed",
+  "debt": "exact debt amount or Not disclosed",
   "recurring_revenue": "% or description of recurring revenue",
   "financial_quality": "2-3 sentences assessing earnings quality using specific numbers from the document",
-  "value_creation_thesis": "3-4 sentences on how an investor makes money — roll-up, growth, margin expansion, exit multiple. Be specific.",
-  "market_context": "2-3 sentences on the market opportunity with specific data points",
+  "value_creation_thesis": "3-4 sentences on how an investor makes money here — growth, roll-up, margin expansion, exit multiple. Be specific with numbers.",
+  "market_context": "2-3 sentences on the market opportunity with specific data points from the document",
   "gfam_fit_score": 8,
   "gfam_fit_reason": "2 sentences on fit with GFAM mandate referencing specific deal characteristics",
   "recommended_capital_product": "one of: Growth Capital, Acquisition Financing, Liquidity Solutions, Special Situations Financing, Stabilization Capital",
-  "key_strengths": ["Specific strength with data point from document", "Specific strength with data point", "Specific strength with data point"],
-  "key_risks": ["Specific risk with context from document", "Specific risk with context", "Specific risk with context"],
+  "key_strengths": ["Specific strength with data point", "Specific strength with data point", "Specific strength with data point"],
+  "key_risks": ["Specific risk with context", "Specific risk with context", "Specific risk with context"],
   "red_flags": [],
-  "diligence_checklist": ["Specific item to verify or request", "Specific item to verify", "Specific item to verify", "Specific item to verify", "Specific item to verify"],
+  "diligence_checklist": ["Request audited financial statements", "Verify exclusivity of corridor agreements", "Conduct management reference checks", "Review B2B contract terms and renewal risk", "Assess regulatory approval timeline for BC and Quebec expansion"],
   "recommendation": "GO or CONDITIONAL GO or PASS",
   "recommendation_rationale": "2-3 direct sentences justifying the recommendation with specific numbers"
 }}"""
@@ -109,10 +121,10 @@ From the document above, find and return ONLY this JSON with the real values. No
         "gfam_fit_score": result.get("gfam_fit_score", 5),
         "gfam_fit_reason": result.get("gfam_fit_reason", ""),
         "recommended_capital_product": result.get("recommended_capital_product", "None"),
-        "key_strengths": result.get("key_strengths", []),
-        "key_risks": result.get("key_risks", []),
-        "red_flags": result.get("red_flags", []),
-        "diligence_checklist": result.get("diligence_checklist", []),
+        "key_strengths": clean_list(result.get("key_strengths", [])),
+        "key_risks": clean_list(result.get("key_risks", [])),
+        "red_flags": clean_list(result.get("red_flags", [])),
+        "diligence_checklist": clean_list(result.get("diligence_checklist", [])),
         "recommendation": result.get("recommendation", "CONDITIONAL GO"),
         "recommendation_rationale": result.get("recommendation_rationale", ""),
     }
